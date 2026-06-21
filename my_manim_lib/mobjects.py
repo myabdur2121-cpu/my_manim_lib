@@ -493,4 +493,27 @@ class TrueGaussianBlur2(ImageMobject):
         self.stretch_to_fit_width(width)
         self.stretch_to_fit_height(height)
         self.move_to(mobject.get_center())
-    #
+        
+
+class SplitTex(Tex):
+    def __init__(self, text_string, *args, word_spacing=r"\ ", **kwargs):
+        # Note: The input string is split into individual words using the split method.
+        words = text_string.split()
+        
+        # Note: The LaTeX spacing character is prepended to every word after the first one.
+        processed_words = [
+            word if i == 0 else word_spacing + word
+            for i, word in enumerate(words)
+        ]
+        
+        # Note: All processed word arguments are unpacked into the parent Tex class.
+        super().__init__(*processed_words, *args, **kwargs)
+
+class SplitMathTex(MathTex):
+    def __init__(self, math_string, *args, **kwargs):
+        # Note: The math equation string is split by spaces into individual segments.
+        math_parts = math_string.split()
+        
+        # Note: The segments are passed directly into the parent MathTex initialization.
+        super().__init__(*math_parts, *args, **kwargs)
+        
