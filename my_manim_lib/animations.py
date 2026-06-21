@@ -493,63 +493,142 @@ class CreateWithFlash(AnimationGroup):
         )
 
 
-class WordByWordCaption(Succession):
+from manim import *
+
+class AdvancedNestedCaption(Succession):
+    """
+    Note: This class requires the NestedSplitTex and NestedSplitMathTex classes to function correctly.
+    It relies entirely on the nested VGroup structure provided by those two custom classes to apply dual-layer lag ratios.
+    """
     def __init__(
         self,
-        text_obj,                # এখন এখানে সরাসরি Manim Text, MathTex বা VGroup অবজেক্ট পাস করবেন।
-        anim_style="fade_shift",
-        fadeout_shift=None,
-        fadein_shift=None,       # অপশন: "fade_shift", "fade", "write"
-        lag_ratio=0.4,
-        speedinfo=None,
-        wait_time=1.0,           # বাক্যটি শেষ হওয়ার পর কতক্ষণ স্ক্রিনে থাকবে তা নির্ধারণ করে।
-        alignment=None,          # অপশন: "center", "left", "right" (None থাকলে অবজেক্টের নিজস্ব পজিশন বজায় থাকবে)
+        text_obj,                # This is your NestedSplitTex or NestedSplitMathTex object.
+        anim_style="fade_shift", # This defines the entrance style of the animation.
+        char_lag_ratio=0.15,     # This controls the delay between individual characters.
+        word_lag_ratio=0.4,      # This controls the delay between separate words or math blocks.
+        fadein_shift=None,       # This defines the direction and distance of the fade-in movement.
+        fadeout_shift=None,      # This defines the direction and distance of the fade-out movement.
+        sub_runtime=0.4,         # This determines the runtime for each individual character animation.
+        wait_time=1.0,           # This sets how long the full text stays visible on screen.
+        alignment="center",      # This positions the text layout on the screen environment.
+        speedinfo=None,          # This enables audio syncing via the ChangeSpeed class.
         **kwargs
     ):
-        # ক) এখানে সরাসরি পাস করা ম্যানিম টেক্সট অবজেক্টটি অ্যাসাইন করা হলো।
-        words_vgroup = text_obj
-        
-        # অবজেক্টের ভেতরের সাব-মবজেক্টগুলোকে (যেমন: প্রতিটি শব্দ বা ক্যারেক্টার) অ্যানিমেশনের জন্য আলাদা করা হচ্ছে।
-        # যদি অবজেক্টের ভেতরে কোনো সাব-অবজেক্ট না থাকে, তবে পুরো অবজেক্টটিকেই একটি লিস্টে রাখা হবে।
-        sub_mobjects = words_vgroup.submobjects if len(words_vgroup.submobjects) > 0 else [words_vgroup]
+        # Note: The alignment configuration positions the main text object across the screen.
+        if alignment == "left":
+            text_obj.to_edge(LEFT, buff=1)
+        elif alignment == "right":
+            text_obj.to_edge(RIGHT, buff=1)
+        elif alignment == "center":
+            text_obj.move_to(ORIGIN)
 
         if fadein_shift is None:
-            fadein_shift = UP * 0.5
+            fadein_shift = UP * 0.3
         if fadeout_shift is None:
-            fadeout_shift = DOWN * 0.5
+            fadeout_shift = DOWN * 0.3
 
-        # খ) পজিশন ও অ্যালাইনমেন্ট কন্ট্রোল করার অংশ।
-        # ইউজার যদি বাইরে পজিশন হ্যান্ডেল করতে চান, তবে alignment=None রাখলেই অবজেক্টের আগের পজিশন ঠিক থাকবে।
-        if alignment == "left":
-            words_vgroup.to_edge(LEFT, buff=1)
-        elif alignment == "right":
-            words_vgroup.to_edge(RIGHT, buff=1)
-        elif alignment == "center":
-            words_vgroup.move_to(ORIGIN)
+        word_anims = []
+        
+        # Note: This loop iterates through each word block to extract character elements.
+        for word_vgroup in text_obj:
+            char_anims = []
+            
+            # Note: This handles safely extracting single elements if no sub-mobjects exist.
+            sub_mobs = word_vgroup.submobjects if len(word_vgroup.submobjects) > 0 else [word_vgroup]
+            
+            # Note: Individual character animations are generated based on the selected style.
+            for char in sub_mobs:
+                if anim_style == "write":
+                    char_anims.append(Write(char, run_time=sub_runtime))
+                elif anim_style == "fade":
+                    char_anims.append(FadeIn(char, run_time=sub_runtime))
+                else:
+                    char_anims.append(FadeIn(char, shift=fadein_shift, run_time=sub_runtime))
+            
+            # Note: Character level animations are bundled together using the char_lag_ratio parameter.
+            word_anim = LaggedStart(*char_anims, lag_ratio=char_lag_ratio, rate_func=linear)
+            word_anims.append(word_anim)
+        
+        # Note: All word groups are synchronized together using the primary word_lag_ratio setting.
+        entry_animation = LaggedStart(*word_anims, lag_ratio=word_lag_ratio)
 
-        # গ) সাব-মবজেক্টগুলোর জন্য অ্যানিমেশন স্টাইল সিলেক্ট করা হচ্ছে।
-        if anim_style == "write":
-            sub_anims = [Write(sub_mob) for sub_mob in sub_mobjects]
-        elif anim_style == "fade":
-            sub_anims = [FadeIn(sub_mob) for sub_mob in sub_mobjects]
-        else:
-            # ডিফল্ট অপশন হিসেবে হালকা নিচ থেকে উপরে ভেসে ওঠার অ্যানিমেশন সেট করা হলো।
-            sub_anims = [FadeIn(sub_mob, shift=fadein_shift) for sub_mob in sub_mobjects]
+        # Note: The ChangeSpeed wrapper is applied here if time syncing parameters are provided.
+        if speedinfo is not None:
+            entry_animation = ChangeSpeed(entry_animation, speedinfo=speedinfo)
 
-        # ঘ) স্পিডোমিটার (ChangeSpeed) সেটিংস সেট করা হচ্ছে।
-        if speedinfo is None:
-            speedinfo = {0.3: 1.0, 0.4: 1.0, 0.6: 1.0, 1.0: 1.0}
-
-        # ঙ) স্পিডোমিটারসহ মূল এন্ট্রি অ্যানিমেশনটি তৈরি করা হলো।
-        entry_animation = ChangeSpeed(
-            AnimationGroup(*sub_anims, lag_ratio=lag_ratio, rate_func=linear),
-            speedinfo=speedinfo
-        )
-
-        # চ) Succession দিয়ে পুরো লাইফসাইকেল একসাথে জোড়া লাগানো হলো (আসা -> থামা -> যাওয়া)।
+        # Note: The parent succession sequence links the entry animation, wait period, and exit fadeout.
         super().__init__(
             entry_animation,
             Wait(wait_time),
-            FadeOut(words_vgroup, shift=fadeout_shift, run_time=0.4),
+            FadeOut(text_obj, shift=fadeout_shift, run_time=0.4),
+            **kwargs
+        )
+
+class AdvancedNestedCaption(Succession):
+    """
+    Note: This class requires the NestedSplitTex and NestedSplitMathTex classes to function correctly.
+    It relies entirely on the nested VGroup structure provided by those two custom classes to apply dual-layer lag ratios.
+    """
+    def __init__(
+        self,
+        text_obj,                # This is your NestedSplitTex or NestedSplitMathTex object.
+        anim_style="fade_shift", # This defines the entrance style of the animation.
+        char_lag_ratio=0.15,     # This controls the delay between individual characters.
+        word_lag_ratio=0.4,      # This controls the delay between separate words or math blocks.
+        fadein_shift=None,       # This defines the direction and distance of the fade-in movement.
+        fadeout_shift=None,      # This defines the direction and distance of the fade-out movement.
+        sub_runtime=0.4,         # This determines the runtime for each individual character animation.
+        wait_time=1.0,           # This sets how long the full text stays visible on screen.
+        alignment="center",      # This positions the text layout on the screen environment.
+        speedinfo=None,          # This enables audio syncing via the ChangeSpeed class.
+        **kwargs
+    ):
+        # Note: The alignment configuration positions the main text object across the screen.
+        if alignment == "left":
+            text_obj.to_edge(LEFT, buff=1)
+        elif alignment == "right":
+            text_obj.to_edge(RIGHT, buff=1)
+        elif alignment == "center":
+            text_obj.move_to(ORIGIN)
+
+        if fadein_shift is None:
+            fadein_shift = UP * 0.3
+        if fadeout_shift is None:
+            fadeout_shift = DOWN * 0.3
+
+        word_anims = []
+        
+        # Note: This loop iterates through each word block to extract character elements.
+        for word_vgroup in text_obj:
+            char_anims = []
+            
+            # Note: This handles safely extracting single elements if no sub-mobjects exist.
+            sub_mobs = word_vgroup.submobjects if len(word_vgroup.submobjects) > 0 else [word_vgroup]
+            
+            # Note: Individual character animations are generated based on the selected style.
+            for char in sub_mobs:
+                if anim_style == "write":
+                    char_anims.append(Write(char, run_time=sub_runtime))
+                elif anim_style == "fade":
+                    char_anims.append(FadeIn(char, run_time=sub_runtime))
+                else:
+                    char_anims.append(FadeIn(char, shift=fadein_shift, run_time=sub_runtime))
+            
+            # Note: Character level animations are bundled together using the char_lag_ratio parameter.
+            word_anim = LaggedStart(*char_anims, lag_ratio=char_lag_ratio, rate_func=linear)
+            word_anims.append(word_anim)
+        
+        # Note: All word groups are synchronized together using the primary word_lag_ratio setting.
+        entry_animation = LaggedStart(*word_anims, lag_ratio=word_lag_ratio)
+
+        # Note: The ChangeSpeed wrapper is applied here if time syncing parameters are provided.
+        if speedinfo is not None:
+            entry_animation = ChangeSpeed(entry_animation, speedinfo=speedinfo)
+
+        # Note: The parent succession sequence links the entry animation, wait period, and exit fadeout.
+        super().__init__(
+            entry_animation,
+            Wait(wait_time),
+            FadeOut(text_obj, shift=fadeout_shift, run_time=0.4),
             **kwargs
         )
