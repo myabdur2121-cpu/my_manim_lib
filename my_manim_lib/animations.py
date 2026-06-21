@@ -496,54 +496,57 @@ class CreateWithFlash(AnimationGroup):
 class WordByWordCaption(Succession):
     def __init__(
         self,
-        text,
-        font_size=40,
-        alignment="center",      # অপশন: "center", "left", "right"
+        text_obj,                # এখন এখানে সরাসরি Manim Text, MathTex বা VGroup অবজেক্ট পাস করবেন।
         anim_style="fade_shift",
         fadeout_shift=None,
-        fadein_shift=None,# অপশন: "fade_shift", "fade", "write"
+        fadein_shift=None,       # অপশন: "fade_shift", "fade", "write"
         lag_ratio=0.4,
         speedinfo=None,
-        wait_time=1.0,           # বাক্যটি শেষ হওয়ার পর কতক্ষণ স্ক্রিনে থাকবে
+        wait_time=1.0,           # বাক্যটি শেষ হওয়ার পর কতক্ষণ স্ক্রিনে থাকবে তা নির্ধারণ করে।
+        alignment=None,          # অপশন: "center", "left", "right" (None থাকলে অবজেক্টের নিজস্ব পজিশন বজায় থাকবে)
         **kwargs
     ):
-        # ক) টেক্সট স্প্লিট ও ভিগ্রুপ তৈরি (সব ইন্টারনাল প্রসেসিং এখানেই হবে)
-        words_vgroup = VGroup(*[Text(word, font_size=font_size) for word in text.split()])
-        words_vgroup.arrange(RIGHT, buff=0.18)
+        # ক) এখানে সরাসরি পাস করা ম্যানিম টেক্সট অবজেক্টটি অ্যাসাইন করা হলো।
+        words_vgroup = text_obj
+        
+        # অবজেক্টের ভেতরের সাব-মবজেক্টগুলোকে (যেমন: প্রতিটি শব্দ বা ক্যারেক্টার) অ্যানিমেশনের জন্য আলাদা করা হচ্ছে।
+        # যদি অবজেক্টের ভেতরে কোনো সাব-অবজেক্ট না থাকে, তবে পুরো অবজেক্টটিকেই একটি লিস্টে রাখা হবে।
+        sub_mobjects = words_vgroup.submobjects if len(words_vgroup.submobjects) > 0 else [words_vgroup]
 
         if fadein_shift is None:
-            fadein_shift = UP*0.5
+            fadein_shift = UP * 0.5
         if fadeout_shift is None:
-            fadeout_shift = DOWN*0.5
+            fadeout_shift = DOWN * 0.5
 
-        # খ) পজিশন ও অ্যালাইনমেন্ট কন্ট্রোল
+        # খ) পজিশন ও অ্যালাইনমেন্ট কন্ট্রোল করার অংশ।
+        # ইউজার যদি বাইরে পজিশন হ্যান্ডেল করতে চান, তবে alignment=None রাখলেই অবজেক্টের আগের পজিশন ঠিক থাকবে।
         if alignment == "left":
             words_vgroup.to_edge(LEFT, buff=1)
         elif alignment == "right":
             words_vgroup.to_edge(RIGHT, buff=1)
-        else:
-            words_vgroup.move_to(ORIGIN) # ডিফল্ট মিডল সেন্টার
+        elif alignment == "center":
+            words_vgroup.move_to(ORIGIN)
 
-        # গ) অ্যানিমেশন স্টাইল সিলেক্ট করা (+ lag_ratio)
+        # গ) সাব-মবজেক্টগুলোর জন্য অ্যানিমেশন স্টাইল সিলেক্ট করা হচ্ছে।
         if anim_style == "write":
-            sub_anims = [Write(word) for word in words_vgroup]
+            sub_anims = [Write(sub_mob) for sub_mob in sub_mobjects]
         elif anim_style == "fade":
-            sub_anims = [FadeIn(word,shift=fadein_shift) for word in words_vgroup]
+            sub_anims = [FadeIn(sub_mob) for sub_mob in sub_mobjects]
         else:
-            # ডিফল্ট: নিচ থেকে হালকা লাফিয়ে স্মুথলি ভেসে উঠবে
-            sub_anims = [FadeIn(word, shift=fadein_shift) for word in words_vgroup]
+            # ডিফল্ট অপশন হিসেবে হালকা নিচ থেকে উপরে ভেসে ওঠার অ্যানিমেশন সেট করা হলো।
+            sub_anims = [FadeIn(sub_mob, shift=fadein_shift) for sub_mob in sub_mobjects]
 
-        # ঘ) স্পিডোমিটার (ChangeSpeed) সেটিংস
+        # ঘ) স্পিডোমিটার (ChangeSpeed) সেটিংস সেট করা হচ্ছে।
         if speedinfo is None:
             speedinfo = {0.3: 1.0, 0.4: 1.0, 0.6: 1.0, 1.0: 1.0}
 
-        # ঙ) স্পিডোমিটারসহ এন্ট্রি অ্যানিমেশন তৈরি
+        # ঙ) স্পিডোমিটারসহ মূল এন্ট্রি অ্যানিমেশনটি তৈরি করা হলো।
         entry_animation = ChangeSpeed(
             AnimationGroup(*sub_anims, lag_ratio=lag_ratio, rate_func=linear),
             speedinfo=speedinfo
         )
 
-        # চ) Succession দিয়ে পুরো লাইফসাইকেল একসাথে জোড়া লাগানো (আসা -> থামা -> যাওয়া)
+        # চ) Succession দিয়ে পুরো লাইফসাইকেল একসাথে জোড়া লাগানো হলো (আসা -> থামা -> যাওয়া)।
         super().__init__(
             entry_animation,
             Wait(wait_time),
