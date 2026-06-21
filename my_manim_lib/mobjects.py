@@ -495,25 +495,42 @@ class TrueGaussianBlur2(ImageMobject):
         self.move_to(mobject.get_center())
         
 
-class SplitTex(Tex):
-    def __init__(self, text_string, *args, word_spacing=r"\ ", **kwargs):
-        # Note: The input string is split into individual words using the split method.
-        words = text_string.split()
+class NestedSplitMathTex(VGroup):
+    def __init__(self, math_string, **kwargs):
+        # ডাবল স্পেস দিয়ে প্রথমে পুরো সমীকরণকে বড় বড় ব্লকে (ওয়ার্ড) ভাগ করা হচ্ছে
+        math_blocks = math_string.split("  ")
+        block_vgroups = []
         
-        # Note: The LaTeX spacing character is prepended to every word after the first one.
-        processed_words = [
-            word if i == 0 else word_spacing + word
-            for i, word in enumerate(words)
-        ]
-        
-        # Note: All processed word arguments are unpacked into the parent Tex class.
-        super().__init__(*processed_words, *args, **kwargs)
+        for block in math_blocks:
+            # সিঙ্গেল স্পেস দিয়ে ব্লকের ভেতরের সিম্বলগুলোকে আলাদা করা হচ্ছে
+            # এর ফলে c^2 বা \theta একসাথে অক্ষত থাকবে, ভাঙবে না
+            symbols = block.split()
+            
+            if symbols:
+                # ভেতরের সিম্বলগুলোকে নিয়ে একটি MathTex অবজেক্ট (যা নিজেই একটি VGroup) তৈরি হলো
+                block_mob = MathTex(*symbols, **kwargs)
+                block_vgroups.append(block_mob)
+                
+        # সব ব্লকগুলোকে মূল VGroup-এ ঢুকিয়ে দেওয়া হলো
+        super().__init__(*block_vgroups)
 
-class SplitMathTex(MathTex):
-    def __init__(self, math_string, *args, **kwargs):
-        # Note: The math equation string is split by spaces into individual segments.
-        math_parts = math_string.split()
+
+class NestedSplitTex(VGroup):
+    def __init__(self, text_string, **kwargs):
+        words = text_string.split()
+        word_vgroups = []
         
-        # Note: The segments are passed directly into the parent MathTex initialization.
-        super().__init__(*math_parts, *args, **kwargs)
+        for i, word in enumerate(words):
+            # প্রতিটি শব্দকে অক্ষরে অক্ষরে ভেঙে ফেলা হচ্ছে
+            # শব্দের শুরুতে LaTeX স্পেসিং (\ ) দেওয়া হচ্ছে যেন শব্দগুলো জোড়া না লেগে যায়
+            char_list = list(word)
+            if i > 0:
+                char_list[0] = r"\ " + char_list[0]
+                
+            # অক্ষরগুলোকে নিয়ে একটি শব্দের VGroup বানানো হলো
+            word_mob = Tex(*char_list, **kwargs)
+            word_vgroups.append(word_mob)
+            
+        # সব শব্দকে মূল VGroup-এ ঢুকিয়ে দেওয়া হলো
+        super().__init__(*word_vgroups)
         
