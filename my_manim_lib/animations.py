@@ -493,7 +493,6 @@ class CreateWithFlash(AnimationGroup):
         )
 
 
-from manim import *
 
 class AdvancedNestedCaption(Succession):
     """
@@ -564,71 +563,3 @@ class AdvancedNestedCaption(Succession):
             **kwargs
         )
 
-class AdvancedNestedCaption(Succession):
-    """
-    Note: This class requires the NestedSplitTex and NestedSplitMathTex classes to function correctly.
-    It relies entirely on the nested VGroup structure provided by those two custom classes to apply dual-layer lag ratios.
-    """
-    def __init__(
-        self,
-        text_obj,                # This is your NestedSplitTex or NestedSplitMathTex object.
-        anim_style="fade_shift", # This defines the entrance style of the animation.
-        char_lag_ratio=0.15,     # This controls the delay between individual characters.
-        word_lag_ratio=0.4,      # This controls the delay between separate words or math blocks.
-        fadein_shift=None,       # This defines the direction and distance of the fade-in movement.
-        fadeout_shift=None,      # This defines the direction and distance of the fade-out movement.
-        sub_runtime=0.4,         # This determines the runtime for each individual character animation.
-        wait_time=1.0,           # This sets how long the full text stays visible on screen.
-        alignment="center",      # This positions the text layout on the screen environment.
-        speedinfo=None,          # This enables audio syncing via the ChangeSpeed class.
-        **kwargs
-    ):
-        # Note: The alignment configuration positions the main text object across the screen.
-        if alignment == "left":
-            text_obj.to_edge(LEFT, buff=1)
-        elif alignment == "right":
-            text_obj.to_edge(RIGHT, buff=1)
-        elif alignment == "center":
-            text_obj.move_to(ORIGIN)
-
-        if fadein_shift is None:
-            fadein_shift = UP * 0.3
-        if fadeout_shift is None:
-            fadeout_shift = DOWN * 0.3
-
-        word_anims = []
-        
-        # Note: This loop iterates through each word block to extract character elements.
-        for word_vgroup in text_obj:
-            char_anims = []
-            
-            # Note: This handles safely extracting single elements if no sub-mobjects exist.
-            sub_mobs = word_vgroup.submobjects if len(word_vgroup.submobjects) > 0 else [word_vgroup]
-            
-            # Note: Individual character animations are generated based on the selected style.
-            for char in sub_mobs:
-                if anim_style == "write":
-                    char_anims.append(Write(char, run_time=sub_runtime))
-                elif anim_style == "fade":
-                    char_anims.append(FadeIn(char, run_time=sub_runtime))
-                else:
-                    char_anims.append(FadeIn(char, shift=fadein_shift, run_time=sub_runtime))
-            
-            # Note: Character level animations are bundled together using the char_lag_ratio parameter.
-            word_anim = LaggedStart(*char_anims, lag_ratio=char_lag_ratio, rate_func=linear)
-            word_anims.append(word_anim)
-        
-        # Note: All word groups are synchronized together using the primary word_lag_ratio setting.
-        entry_animation = LaggedStart(*word_anims, lag_ratio=word_lag_ratio)
-
-        # Note: The ChangeSpeed wrapper is applied here if time syncing parameters are provided.
-        if speedinfo is not None:
-            entry_animation = ChangeSpeed(entry_animation, speedinfo=speedinfo)
-
-        # Note: The parent succession sequence links the entry animation, wait period, and exit fadeout.
-        super().__init__(
-            entry_animation,
-            Wait(wait_time),
-            FadeOut(text_obj, shift=fadeout_shift, run_time=0.4),
-            **kwargs
-        )
