@@ -495,42 +495,85 @@ class TrueGaussianBlur2(ImageMobject):
         self.move_to(mobject.get_center())
         
 
-class NestedSplitMathTex(VGroup):
-    def __init__(self, math_string, **kwargs):
-        # ডাবল স্পেস দিয়ে প্রথমে পুরো সমীকরণকে বড় বড় ব্লকে (ওয়ার্ড) ভাগ করা হচ্ছে
-        math_blocks = math_string.split("  ")
-        block_vgroups = []
+class SplitTex(Tex):
+    def __init__(self, text_string, split_word=True, split_letter=False, **kwargs):
+        self.split_word = split_word
+        self.split_letter = split_letter
         
-        for block in math_blocks:
-            # সিঙ্গেল স্পেস দিয়ে ব্লকের ভেতরের সিম্বলগুলোকে আলাদা করা হচ্ছে
-            # এর ফলে c^2 বা \theta একসাথে অক্ষত থাকবে, ভাঙবে না
-            symbols = block.split()
-            
-            if symbols:
-                # ভেতরের সিম্বলগুলোকে নিয়ে একটি MathTex অবজেক্ট (যা নিজেই একটি VGroup) তৈরি হলো
-                block_mob = MathTex(*symbols, **kwargs)
-                block_vgroups.append(block_mob)
+        words = text_string.split(" ")
+        processed_args = []
+        self.word_assignments = [] 
+        
+        if split_letter:
+            for i, word in enumerate(words):
+                for j, char in enumerate(word):
+                    if i > 0 and j == 0:
+                        processed_args.append(" " + char) 
+                    else:
+                        processed_args.append(char)
+                    self.word_assignments.append(i) 
+                    
+        elif split_word:
+            for i, word in enumerate(words):
+                if i > 0:
+                    processed_args.append(" " + word)
+                else:
+                    processed_args.append(word)
+                self.word_assignments.append(i)
                 
-        # সব ব্লকগুলোকে মূল VGroup-এ ঢুকিয়ে দেওয়া হলো
-        super().__init__(*block_vgroups)
+        else:
+            processed_args.append(text_string)
+            self.word_assignments.append(0)
+            
+        super().__init__(*processed_args, **kwargs)
 
 
-class NestedSplitTex(VGroup):
-    def __init__(self, text_string, **kwargs):
-        words = text_string.split()
-        word_vgroups = []
+class SplitText(VGroup):
+    def __init__(self, text_string, split_word=True, split_letter=False, **kwargs):
+        super().__init__()
+        self.split_word = split_word
+        self.split_letter = split_letter
+        self.word_assignments = []
         
-        for i, word in enumerate(words):
-            # প্রতিটি শব্দকে অক্ষরে অক্ষরে ভেঙে ফেলা হচ্ছে
-            # শব্দের শুরুতে LaTeX স্পেসিং (\ ) দেওয়া হচ্ছে যেন শব্দগুলো জোড়া না লেগে যায়
-            char_list = list(word)
-            if i > 0:
-                char_list[0] = r"\ " + char_list[0]
-                
-            # অক্ষরগুলোকে নিয়ে একটি শব্দের VGroup বানানো হলো
-            word_mob = Tex(*char_list, **kwargs)
-            word_vgroups.append(word_mob)
+        # প্রথমে পুরো টেক্সটটিকে একটি একক Text অবজেক্ট হিসেবে রেন্ডার করা হলো
+        # এর ফলে ফন্টের নিজস্ব কার্নিং এবং পজিশনিং ১০০% নিখুঁত থাকবে
+        full_text = Text(text_string, **kwargs)
+        
+        # ক) কোনো স্প্লিট না থাকলে পুরো অবজেক্ট একবারে থাকবে
+        if not split_word and not split_letter:
+            self.add(full_text)
+            self.word_assignments.append(0)
+            return
             
-        # সব শব্দকে মূল VGroup-এ ঢুকিয়ে দেওয়া হলো
-        super().__init__(*word_vgroups)
+        # খ) ক্যারেক্টার ইনডেক্স থেকে শব্দ ইনডেক্স ম্যাপিং করার স্মার্ট লজিক
+        # এটি একাধিক স্পেস বা যেকোনো স্পেসকে নিখুঁতভাবে হ্যান্ডেল করবে
+        words = text_string.split(" ")
+        char_to_word_idx = []
+        for w_idx, word in enumerate(words):
+            for _ in word:
+                char_to_word_idx.append(w_idx)
+            char_to_word_idx.append(w_idx) # ট্রেইলিং স্পেসকে কারেন্ট শব্দের সাথে যুক্ত করা হলো
+            
+        # স্ট্রিং এর অতিরিক্ত শেষ স্পেসের ইনডেক্স ছেঁটে ফেলা হলো
+        char_to_word_idx = char_to_word_idx[:len(text_string)]
         
+        # গ) লেটার স্প্লিট ট্রু হলে (প্রতিটি ক্যারেক্টার আলাদা সাব-মবজেক্ট হবে)
+        if split_letter:
+            for i in range(min(len(full_text), len(char_to_word_idx))):
+                self.add(full_text[i])
+                self.word_assignments.append(char_to_word_idx[i])
+                
+        # ঘ) শুধু ওয়ার্ড স্প্লিট ট্রু হলে (অক্ষরগুলোকে শব্দ ভিত্তিক VGroup-এ প্যাক করা হবে)
+        elif split_word:
+            word_groups = {}
+            for i in range(min(len(full_text), len(char_to_word_idx))):
+                w_idx = char_to_word_idx[i]
+                if w_idx not in word_groups:
+                    word_groups[w_idx] = VGroup()
+                word_groups[w_idx].add(full_text[i])
+                
+            # তৈরি হওয়া শব্দের গ্রুপগুলোকে মূল অবজেক্টে ক্রমানুসারে যোগ করা
+            for w_idx in sorted(word_groups.keys()):
+                self.add(word_groups[w_idx])
+                self.word_assignments.append(w_idx)
+
