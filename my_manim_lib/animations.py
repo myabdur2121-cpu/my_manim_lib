@@ -494,72 +494,120 @@ class CreateWithFlash(AnimationGroup):
 
 
 
-class AdvancedNestedCaption(Succession):
-    """
-    Note: This class requires the NestedSplitTex and NestedSplitMathTex classes to function correctly.
-    It relies entirely on the nested VGroup structure provided by those two custom classes to apply dual-layer lag ratios.
-    """
+class WordByWordCaption(Succession):
     def __init__(
-        self,
-        text_obj,                # This is your NestedSplitTex or NestedSplitMathTex object.
-        anim_style="fade_shift", # This defines the entrance style of the animation.
-        char_lag_ratio=0.15,     # This controls the delay between individual characters.
-        word_lag_ratio=0.4,      # This controls the delay between separate words or math blocks.
-        fadein_shift=None,       # This defines the direction and distance of the fade-in movement.
-        fadeout_shift=None,      # This defines the direction and distance of the fade-out movement.
-        sub_runtime=0.4,         # This determines the runtime for each individual character animation.
-        wait_time=1.0,           # This sets how long the full text stays visible on screen.
-        alignment="center",      # This positions the text layout on the screen environment.
-        speedinfo=None,          # This enables audio syncing via the ChangeSpeed class.
+        self, 
+        tex_object,              
+        # --- অ্যানিমেশন স্টাইল পেয়ার ---
+        word_anim_style="fade_shift",  
+        letter_anim_style="fade_shift",
+        # --- ইফেক্ট সুইচ পেয়ার ---
+        word_effect=True,         
+        letter_effect=False,      
+        # --- ল্যাগ রেশিও পেয়ার ---
+        word_lag_ratio=0.5,       
+        letter_lag_ratio=0.1,     
+        # --- রেট ফাংশন পেয়ার ---
+        word_rate_func=linear,         
+        letter_rate_func=linear,         
+        # --- স্পিডইনফো (স্পিডোমিটার) পেয়ার ---
+        word_speedinfo=None,           
+        letter_speedinfo=None,    
+        # --- মোশন শিফট ভ্যালু পেয়ার (নতুন ও সিমেট্রিক্যাল) ---
+        word_shift_val=0.15,       # শব্দের ভেসে ওঠার দূরত্ব
+        letter_shift_val=0.10,     # অক্ষরের ভেসে ওঠার দূরত্ব
+        # --- গ্লোবাল লাইফসাইকেল ---
+        wait_time=1.0,           
+        last_sentence_stay=False, 
         **kwargs
     ):
-        # Note: The alignment configuration positions the main text object across the screen.
-        if alignment == "left":
-            text_obj.to_edge(LEFT, buff=1)
-        elif alignment == "right":
-            text_obj.to_edge(RIGHT, buff=1)
-        elif alignment == "center":
-            text_obj.move_to(ORIGIN)
-
-        if fadein_shift is None:
-            fadein_shift = UP * 0.3
-        if fadeout_shift is None:
-            fadeout_shift = DOWN * 0.3
-
-        word_anims = []
+        is_split_letter = getattr(tex_object, "split_letter", False)
+        is_split_word = getattr(tex_object, "split_word", True)
+        word_assignments = getattr(tex_object, "word_assignments", [])
         
-        # Note: This loop iterates through each word block to extract character elements.
-        for word_vgroup in text_obj:
-            char_anims = []
-            
-            # Note: This handles safely extracting single elements if no sub-mobjects exist.
-            sub_mobs = word_vgroup.submobjects if len(word_vgroup.submobjects) > 0 else [word_vgroup]
-            
-            # Note: Individual character animations are generated based on the selected style.
-            for char in sub_mobs:
-                if anim_style == "write":
-                    char_anims.append(Write(char, run_time=sub_runtime))
-                elif anim_style == "fade":
-                    char_anims.append(FadeIn(char, run_time=sub_runtime))
-                else:
-                    char_anims.append(FadeIn(char, shift=fadein_shift, run_time=sub_runtime))
-            
-            # Note: Character level animations are bundled together using the char_lag_ratio parameter.
-            word_anim = LaggedStart(*char_anims, lag_ratio=char_lag_ratio, rate_func=linear)
-            word_anims.append(word_anim)
+        # অ্যানিমেশন স্টাইল সিলেক্ট করার সেফ ডাইনামিক হেল্পার (ভেক্টর বাগ ফিক্সড)
+        def get_anim(mobj, style, shift_amount):
+            if style == "write":
+                return Write(mobj)
+            elif style == "fade":
+                return FadeIn(mobj) # পিওর ফেড, কোনো ডিরেকশনাল শিফট নেই
+            else: # "fade_shift" স্টাইল
+                return FadeIn(mobj, shift=UP * shift_amount) # ভেক্টর মাল্টিপ্লিকেশন নিরাপদ
+
+        # ----------------------------------------------------
+        # কোর অ্যানিমেশন ইঞ্জিন বিল্ডিং লজিক (Symmetrical)
+        # ----------------------------------------------------
         
-        # Note: All word groups are synchronized together using the primary word_lag_ratio setting.
-        entry_animation = LaggedStart(*word_anims, lag_ratio=word_lag_ratio)
+        # কেস ১: অবজেক্ট অক্ষরে বিভক্ত এবং ডাবল লেয়ার ল্যাগ একটিভ
+        if is_split_letter and word_effect and letter_effect:
+            word_groups = {}
+            for idx, mobj in enumerate(tex_object):
+                w_idx = word_assignments[idx]
+                if w_idx not in word_groups:
+                    word_groups[w_idx] = []
+                word_groups[w_idx].append(mobj)
+                
+            word_anims = []
+            for w_idx in sorted(word_groups.keys()):
+                letters_in_word = word_groups[w_idx]
+                # এখানে লেটারের নিজস্ব স্টাইল ও শিফট ভ্যালু পাস হচ্ছে
+                let_anims = [get_anim(let, letter_anim_style, letter_shift_val) for let in letters_in_word]
+                
+                word_anim = AnimationGroup(
+                    *let_anims, 
+                    lag_ratio=letter_lag_ratio, 
+                    rate_func=letter_rate_func
+                )
+                if letter_speedinfo is not None:
+                    word_anim = ChangeSpeed(word_anim, speedinfo=letter_speedinfo, affects_speed_updaters=False)
+                word_anims.append(word_anim)
+            
+            entry_animation = AnimationGroup(
+                *word_anims, 
+                lag_ratio=word_lag_ratio, 
+                rate_func=word_rate_func
+            )
+            
+        # কেস ২: অবজেক্ট অক্ষরে বিভক্ত, কিন্তু word_effect=False (শুধু ফ্ল্যাট ভাবে এক এক করে অক্ষর আসবে)
+        elif is_split_letter and letter_effect:
+            let_anims = [get_anim(let, letter_anim_style, letter_shift_val) for let in tex_object]
+            entry_animation = AnimationGroup(
+                *let_anims, 
+                lag_ratio=letter_lag_ratio, 
+                rate_func=letter_rate_func
+            )
+            if letter_speedinfo is not None:
+                entry_animation = ChangeSpeed(entry_animation, speedinfo=letter_speedinfo, affects_speed_updaters=False)
+                
+        # কেস ৩: শুধু শব্দ লেভেলে স্প্লিট এবং word_effect=True
+        elif is_split_word and word_effect:
+            word_anims = [get_anim(w, word_anim_style, word_shift_val) for w in tex_object]
+            entry_animation = AnimationGroup(
+                *word_anims, 
+                lag_ratio=word_lag_ratio, 
+                rate_func=word_rate_func
+            )
+            
+        # কেস ৪: কোনো স্প্লিট বা ইফেক্ট অন না থাকলে ডিফল্ট ফলব্যাক
+        else:
+            entry_animation = get_anim(tex_object, word_anim_style, word_shift_val)
 
-        # Note: The ChangeSpeed wrapper is applied here if time syncing parameters are provided.
-        if speedinfo is not None:
-            entry_animation = ChangeSpeed(entry_animation, speedinfo=speedinfo)
-
-        # Note: The parent succession sequence links the entry animation, wait period, and exit fadeout.
-        super().__init__(
-            entry_animation,
-            Wait(wait_time),
-            FadeOut(text_obj, shift=fadeout_shift, run_time=0.4),
-            **kwargs
-        )
+        # শব্দ লেভেলের বা গ্লোবাল স্পিডোমিটার চেক
+        if word_speedinfo is not None:
+            entry_animation = ChangeSpeed(
+                entry_animation, 
+                speedinfo=word_speedinfo, 
+                affects_speed_updaters=False
+            )
+        
+        # ঘ) লাইফসাইকেল কন্ট্রোল
+        if last_sentence_stay:
+            super().__init__(entry_animation, Wait(wait_time), **kwargs)
+        else:
+            super().__init__(
+                entry_animation,
+                Wait(wait_time),
+                FadeOut(tex_object, shift=DOWN*0.15, run_time=0.4),
+                **kwargs
+            )
 
