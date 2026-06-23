@@ -503,10 +503,10 @@ class WordByWordCaption(Succession):
         letter_anim_style="fade_shift",
         # --- ইফেক্ট সুইচ পেয়ার ---
         word_effect=True,         
-        letter_effect=False,      
+        letter_effect=True,      
         # --- ল্যাগ রেশিও পেয়ার ---
-        word_lag_ratio=0.5,       
-        letter_lag_ratio=0.1,     
+        word_lag_ratio=0.3,       
+        letter_lag_ratio=0.2,     
         # --- রেট ফাংশন পেয়ার ---
         word_rate_func=linear,         
         letter_rate_func=linear,         
@@ -514,11 +514,11 @@ class WordByWordCaption(Succession):
         word_speedinfo=None,           
         letter_speedinfo=None,    
         # --- মোশন শিফট ভ্যালু পেয়ার (নতুন ও সিমেট্রিক্যাল) ---
-        word_shift_val=0.15,       # শব্দের ভেসে ওঠার দূরত্ব
-        letter_shift_val=0.10,     # অক্ষরের ভেসে ওঠার দূরত্ব
+        word_shift_val=0.5,       # শব্দের ভেসে ওঠার দূরত্ব
+        letter_shift_val=0.8,     # অক্ষরের ভেসে ওঠার দূরত্ব
         # --- গ্লোবাল লাইফসাইকেল ---
         wait_time=1.0,           
-        last_sentence_stay=False, 
+        last_sentence_stay=True, 
         **kwargs
     ):
         is_split_letter = getattr(tex_object, "split_letter", False)
