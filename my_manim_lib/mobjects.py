@@ -496,7 +496,7 @@ class TrueGaussianBlur2(ImageMobject):
         
 
 class SplitTex(Tex):
-    def __init__(self, text_string, split_word=True, split_letter=False, **kwargs):
+    def __init__(self, text_string, split_word=True, split_letter=True, **kwargs):
         self.split_word = split_word
         self.split_letter = split_letter
         
@@ -529,7 +529,7 @@ class SplitTex(Tex):
 
 
 class SplitText(VGroup):
-    def __init__(self, text_string, split_word=True, split_letter=False, **kwargs):
+    def __init__(self, text_string, split_word=True, split_letter=True, **kwargs):
         super().__init__()
         self.split_word = split_word
         self.split_letter = split_letter
