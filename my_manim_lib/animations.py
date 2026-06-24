@@ -611,3 +611,75 @@ class WordByWordCaption(Succession):
                 **kwargs
             )
 
+
+class StreamAlongPath(Animation):
+    def __init__(
+        self,
+        base_object,
+        path,
+        velocity=3.0,            # ডিফল্ট গতি
+        gap=0.6,                 # অবজেক্টগুলোর মধ্যবর্তী স্ট্যান্ডার্ড গ্যাপ
+        duration=6.0,            # মোট অ্যানিমেশন টাইম
+        continue_until_end=True, # সময় শেষ হলেও বলগুলো পাথের শেষ পর্যন্ত যাবে
+        fade_while_moving=False, # যেতে যেতে ফেড আউট হবে কিনা
+        **kwargs
+    ):
+        self.base_object = base_object
+        self.path = path
+        self.velocity = velocity
+        self.gap = gap
+        self.duration = duration
+        self.continue_until_end = continue_until_end
+        self.fade_while_moving = fade_while_moving
+        
+        self.active_objects = []
+        self.last_alpha = 0.0  # আগের ফ্রেমের প্রোগ্রেস ট্র্যাক রাখার জন্য
+        
+        super().__init__(VMobject(), run_time=self.duration, **kwargs)
+
+    def begin(self):
+        super().begin()
+        self.mobject.add(*self.active_objects)
+
+    def interpolate_mobject(self, alpha):
+        # alpha (০ থেকে ১) এবং duration থেকে dt (টাইম ডিফারেন্স) বের করা
+        dt = (alpha - self.last_alpha) * self.duration
+        self.last_alpha = alpha
+        
+        current_time = alpha * self.duration
+        path_length = self.path.get_arc_length()
+
+        # ১. নতুন অবজেক্ট স্পন করার লজিক (অ্যানিমেশন টাইম চলাকালীন)
+        if current_time <= self.duration:
+            if path_length > 0:
+                if not self.active_objects or (self.active_objects[-1].path_t * path_length) >= self.gap:
+                    new_obj = self.base_object.copy()
+                    new_obj.path_t = 0.0
+                    new_obj.move_to(self.path.point_from_proportion(0))
+                    self.active_objects.append(new_obj)
+                    self.mobject.add(new_obj)
+
+        # ২. মুভমেন্ট এবং আপডেট লজিক
+        removable_objects = []
+        for obj in self.active_objects:
+            if path_length > 0:
+                obj.path_t += (self.velocity * dt) / path_length
+            
+            if obj.path_t <= 1.0:
+                obj.move_to(self.path.point_from_proportion(obj.path_t))
+                if self.fade_while_moving:
+                    obj.set_opacity(1.0 - obj.path_t)
+            else:
+                removable_objects.append(obj)
+
+        # ৩. কন্টিনিউ আনটিল এন্ড লজিক এবং অবজেক্ট রিমুভাল
+        if current_time >= self.duration and not self.continue_until_end:
+            # যদি continue_until_end = False হয়, তবে বলগুলোকে ফ্রিজ করে রাখবে
+            pass
+        else:
+            for obj in removable_objects:
+                if obj in self.active_objects:
+                    self.active_objects.remove(obj)
+                    self.mobject.remove(obj)
+
+
